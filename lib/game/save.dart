@@ -16,6 +16,8 @@ class SaveData {
   Map<String, int> skills = {'fireball': 1, 'whirl': 0, 'heal': 0};
   Map<String, int> stats = {'hp': 0, 'atk': 0, 'spd': 0, 'crit': 0};
 
+  SaveData();
+
   int get level => 1 + xp ~/ 150;
   int skillLv(String id) => skills[id] ?? 0;
   int stat(String id) => stats[id] ?? 0;
