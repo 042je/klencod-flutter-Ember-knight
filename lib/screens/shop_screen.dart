@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../game/achievements.dart';
 import '../game/data.dart';
 import '../game/save.dart';
 
@@ -19,6 +20,7 @@ class ShopScreen extends StatefulWidget {
 class _ShopScreenState extends State<ShopScreen> {
   void _commit() {
     gSave.save();
+    Ach.checkProgress();
     setState(() {});
   }
 
@@ -50,11 +52,12 @@ class _ShopScreenState extends State<ShopScreen> {
     required String title,
     required String subtitle,
     required Widget trailing,
+    Color titleColor = Colors.white,
   }) {
     return Card(
       color: const Color(0xFF241B38),
       child: ListTile(
-        title: Text(title, style: _mono.copyWith(fontSize: 14)),
+        title: Text(title, style: _mono.copyWith(fontSize: 14, color: titleColor)),
         subtitle: Text(subtitle, style: _mono.copyWith(fontSize: 11, color: Colors.white70)),
         trailing: trailing,
       ),
@@ -116,7 +119,11 @@ class _ShopScreenState extends State<ShopScreen> {
                 _commit();
               });
             }
-            return _row(title: w.name, subtitle: stats, trailing: trailing);
+            return _row(
+                title: '${w.name}  [${kRarityNames[w.rarity]}]',
+                titleColor: Color(kRarityColors[w.rarity]),
+                subtitle: stats,
+                trailing: trailing);
           }),
       ],
     );

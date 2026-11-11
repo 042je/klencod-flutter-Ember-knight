@@ -68,7 +68,26 @@ class GamePainter extends CustomPainter {
       canvas.drawRect(Rect.fromLTWH(world.lockMax + 2, 0, 4, kGroundY), wall);
     }
 
+    for (var i = 0; i < world.checkpoints.length; i++) {
+      final cx = world.checkpoints[i];
+      final active = i <= world.checkpointIdx;
+      canvas.drawRect(Rect.fromLTWH(cx - 1.5, kGroundY - 54, 3, 54), Paint()..color = const Color(0xFFB0BEC5));
+      final flag = Path()
+        ..moveTo(cx + 1.5, kGroundY - 54)
+        ..lineTo(cx + 26, kGroundY - 45)
+        ..lineTo(cx + 1.5, kGroundY - 36)
+        ..close();
+      canvas.drawPath(flag, Paint()..color = active ? const Color(0xFF69F0AE) : const Color(0xFF78909C));
+    }
+
     for (final c in world.coins) {
+      if (c.heart) {
+        canvas.drawCircle(Offset(c.x, c.y - 6), 6, Paint()..color = const Color(0xFFE53935));
+        final cross = Paint()..color = const Color(0xFFFFFFFF);
+        canvas.drawRect(Rect.fromLTWH(c.x - 1.5, c.y - 10, 3, 8), cross);
+        canvas.drawRect(Rect.fromLTWH(c.x - 4, c.y - 7.5, 8, 3), cross);
+        continue;
+      }
       canvas.drawCircle(Offset(c.x, c.y - 4), 4, Paint()..color = const Color(0xFFFFC107));
       canvas.drawCircle(Offset(c.x - 1, c.y - 5), 1.5, Paint()..color = const Color(0xFFFFF8E1));
     }
@@ -90,19 +109,31 @@ class GamePainter extends CustomPainter {
     // Hero.
     final h = world.hero;
     final blink = h.invuln > 0 && ((world.time * 20).floor() % 2 == 0);
-    Sprites.draw(canvas, 'hero', h.x, h.y, 3,
+    final String frame;
+    if (h.slashTimer > 0) {
+      frame = 'hero_atk';
+    } else if (!h.onGround) {
+      frame = 'hero_jump';
+    } else if (h.vx.abs() > 1) {
+      frame = (world.time * 10).floor() % 2 == 0 ? 'hero_run1' : 'hero_run2';
+    } else {
+      frame = 'hero';
+    }
+    Sprites.draw(canvas, frame, h.x, h.y, 3,
         flip: h.facing < 0, flash: h.flash > 0, alpha: blink ? 0.45 : 1);
 
     // Weapon slash.
     if (h.slashTimer > 0) {
       final w = world.weapon;
-      final prog = 1 - h.slashTimer / 0.14;
-      final center = Offset(h.x + h.facing * w.reach * 0.35, h.y - 26);
-      final rect = Rect.fromCenter(center: center, width: w.reach * 1.5, height: 56);
+      final prog = 1 - h.slashTimer / h.slashDur;
+      final fin = h.comboStep == 3;
+      final reach = w.reach * (fin ? 1.3 : 1.0);
+      final center = Offset(h.x + h.facing * reach * 0.35, h.y - 26);
+      final rect = Rect.fromCenter(center: center, width: reach * 1.5, height: fin ? 70 : 56);
       final start = h.facing > 0 ? -1.1 : pi - 1.1;
       final sp = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 5
+        ..strokeWidth = fin ? 8 : 5
         ..strokeCap = StrokeCap.round
         ..color = Color(w.color).withAlpha((255 * (1 - prog * 0.6)).round());
       canvas.drawArc(rect, start, 0.4 + 1.8 * prog, false, sp);

@@ -30,6 +30,83 @@ const List<String> _heroRows = [
   '..kkk..kkk..',
 ];
 
+// Hero animation frames: same 12x16 grid, only arms and legs change.
+const List<String> _heroRun1Rows = [
+  '....hhhh....',
+  '...hhhhhh...',
+  '...hsssss...',
+  '...hsesss...',
+  '...hsssss...',
+  '....bbbb....',
+  '..cbbbbbbc..',
+  '.ccbbbbbbcc.',
+  '.ssbbbbbbss.',
+  '..sbbbbbbs..',
+  '...bbbbbb...',
+  '...bb..bb...',
+  '..bb....bb..',
+  '.bb......bb.',
+  '.kkk....kkk.',
+  '.kkk....kkk.',
+];
+
+const List<String> _heroRun2Rows = [
+  '....hhhh....',
+  '...hhhhhh...',
+  '...hsssss...',
+  '...hsesss...',
+  '...hsssss...',
+  '....bbbb....',
+  '..cbbbbbbc..',
+  '.ccbbbbbbcc.',
+  '.ssbbbbbbss.',
+  '..sbbbbbbs..',
+  '...bbbbbb...',
+  '...bbbbbb...',
+  '....bbbb....',
+  '....bbbb....',
+  '...kkkkkk...',
+  '...kkkkkk...',
+];
+
+const List<String> _heroJumpRows = [
+  '....hhhh....',
+  '...hhhhhh...',
+  '...hsssss...',
+  '...hsesss...',
+  '...hsssss...',
+  '....bbbb....',
+  '.sbbbbbbbbs.',
+  '.ccbbbbbbcc.',
+  '..sbbbbbbs..',
+  '...bbbbbb...',
+  '...bbbbbb...',
+  '...bb..bb...',
+  '..bb....bb..',
+  '..kk....kk..',
+  '............',
+  '............',
+];
+
+const List<String> _heroAtkRows = [
+  '....hhhh..ww',
+  '...hhhhhh.ww',
+  '...hsssss.w.',
+  '...hsesss.w.',
+  '...hsssss.w.',
+  '....bbbb.ww.',
+  '..cbbbbbbs..',
+  '.ccbbbbbsss.',
+  '.ssbbbbbbs..',
+  '..sbbbbbb...',
+  '...bbbbbb...',
+  '...bb..bb...',
+  '...bb..bb...',
+  '...bb..bb...',
+  '..kkk..kkk..',
+  '..kkk..kkk..',
+];
+
 const List<String> _slimeRows = [
   '............',
   '....gggg....',
@@ -111,12 +188,49 @@ const List<String> _golemRows = [
 
 const List<_SpriteDef> _defs = [
   _SpriteDef('hero', _heroRows, {
-    'h': 0xFF5B3A1E,
-    's': 0xFFF2C79B,
-    'e': 0xFF222222,
-    'b': 0xFF3A6FD8,
-    'c': 0xFFC0392B,
-    'k': 0xFF3B2A1A,
+    'h': 0xFFCFC8F0, // lavender hair
+    's': 0xFFF6D5C0,
+    'e': 0xFFE0508C,
+    'b': 0xFF6B4FB8,
+    'c': 0xFF4DD0C4,
+    'k': 0xFF3B2A52,
+    'w': 0xFFE0E0E0,
+  }),
+  _SpriteDef('hero_run1', _heroRun1Rows, {
+    'h': 0xFFCFC8F0, // lavender hair
+    's': 0xFFF6D5C0,
+    'e': 0xFFE0508C,
+    'b': 0xFF6B4FB8,
+    'c': 0xFF4DD0C4,
+    'k': 0xFF3B2A52,
+    'w': 0xFFE0E0E0,
+  }),
+  _SpriteDef('hero_run2', _heroRun2Rows, {
+    'h': 0xFFCFC8F0, // lavender hair
+    's': 0xFFF6D5C0,
+    'e': 0xFFE0508C,
+    'b': 0xFF6B4FB8,
+    'c': 0xFF4DD0C4,
+    'k': 0xFF3B2A52,
+    'w': 0xFFE0E0E0,
+  }),
+  _SpriteDef('hero_jump', _heroJumpRows, {
+    'h': 0xFFCFC8F0, // lavender hair
+    's': 0xFFF6D5C0,
+    'e': 0xFFE0508C,
+    'b': 0xFF6B4FB8,
+    'c': 0xFF4DD0C4,
+    'k': 0xFF3B2A52,
+    'w': 0xFFE0E0E0,
+  }),
+  _SpriteDef('hero_atk', _heroAtkRows, {
+    'h': 0xFFCFC8F0, // lavender hair
+    's': 0xFFF6D5C0,
+    'e': 0xFFE0508C,
+    'b': 0xFF6B4FB8,
+    'c': 0xFF4DD0C4,
+    'k': 0xFF3B2A52,
+    'w': 0xFFE0E0E0,
   }),
   _SpriteDef('slime', _slimeRows, {'g': 0xFF4CAF50, 'e': 0xFF1B1B1B}),
   _SpriteDef('bat', _batRows, {'b': 0xFF6A3FA0, 'r': 0xFFFF4444}),

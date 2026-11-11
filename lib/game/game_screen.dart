@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import 'achievements.dart';
+import 'audio.dart';
 import 'data.dart';
 import 'engine.dart';
 import 'render.dart';
@@ -67,35 +69,68 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late GameWorld world;
   late final Ticker _ticker;
   Duration _last = Duration.zero;
   bool paused = false;
   late int stageIndex;
+  String? banner; // achievement banner text
+  double bannerT = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     stageIndex = widget.stageIndex;
     world = GameWorld(stageIndex, gSave);
     _ticker = createTicker(_tick)..start();
+    Sfx.music('bgm');
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Leaving the app pauses the game and the music.
+    if (state != AppLifecycleState.resumed && world.state == GameState.playing && !paused) {
+      _setPaused(true);
+    }
+  }
+
+  void _setPaused(bool p) {
+    setState(() => paused = p);
+    if (p) {
+      Sfx.pauseMusic();
+    } else {
+      Sfx.resumeMusic();
+    }
   }
 
   void _tick(Duration elapsed) {
     final dt = ((elapsed - _last).inMicroseconds / 1e6).clamp(0.0, 0.033).toDouble();
     _last = elapsed;
     if (!paused) world.update(dt);
+    if (banner == null && Ach.pending.isNotEmpty) {
+      banner = Ach.pending.removeAt(0);
+      bannerT = 3.0;
+    } else if (banner != null) {
+      bannerT -= dt;
+      if (bannerT <= 0) banner = null;
+    }
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    world.settle(); // pay out a defeat that was waiting for a checkpoint decision
+    Sfx.stopMusic();
     _ticker.dispose();
     super.dispose();
   }
 
   void _restart(int index) {
+    world.settle();
+    Sfx.music('bgm');
     setState(() {
       stageIndex = index;
       world = GameWorld(index, gSave);
@@ -115,6 +150,9 @@ class _GameScreenState extends State<GameScreen>
           _hud(),
           ..._controls(),
           if (paused && world.state == GameState.playing) _pauseOverlay(),
+          if (!paused && world.state == GameState.playing && world.choices.isNotEmpty)
+            _perkOverlay(),
+          if (banner != null) _banner(),
           if (world.state != GameState.playing && world.endTimer > 1.0) _resultOverlay(),
         ]);
       }),
@@ -156,7 +194,13 @@ class _GameScreenState extends State<GameScreen>
                   const SizedBox(height: 3),
                   _bar(h.mana / h.maxMana, Colors.lightBlueAccent, 160),
                   const SizedBox(height: 3),
-                  Text('Gold ${world.goldEarned}   Lv ${gSave.level}', style: _mono.copyWith(fontSize: 11, color: Colors.amber)),
+                  Text('Checkpoint ${world.checkpointIdx + 1}/${world.checkpoints.length}',
+                      style: _mono.copyWith(fontSize: 10, color: Colors.lightGreenAccent)),
+                  Text('Gold ${world.goldEarned}   Lv ${gSave.level}   Run Lv ${world.perkLevel}',
+                      style: _mono.copyWith(fontSize: 11, color: Colors.amber)),
+                  if (world.hits >= 2)
+                    Text('x${world.hits} HITS',
+                        style: _mono.copyWith(fontSize: 15, color: Colors.yellowAccent)),
                 ],
               ),
             ),
@@ -190,7 +234,7 @@ class _GameScreenState extends State<GameScreen>
         top: 6,
         right: 8,
         child: IconButton(
-          onPressed: () => setState(() => paused = true),
+          onPressed: () => _setPaused(true),
           icon: const Icon(Icons.pause_circle_outline, color: Colors.white70, size: 34),
         ),
       ),
@@ -299,9 +343,84 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
+  Widget _banner() {
+    return Positioned(
+      top: 56,
+      left: 0,
+      right: 0,
+      child: IgnorePointer(
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black87,
+              border: Border.all(color: Colors.amber, width: 2),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.emoji_events, color: Colors.amber, size: 18),
+                const SizedBox(width: 8),
+                Text(banner ?? '', style: _mono.copyWith(fontSize: 12, color: Colors.amber)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _perkOverlay() {
+    return _panel('LEVEL UP!  Pick a perk', Colors.amber, [
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < world.choices.length; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: SizedBox(
+                width: 150,
+                height: 110,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E2250),
+                    padding: const EdgeInsets.all(8),
+                  ),
+                  onPressed: () => setState(() {
+                    world.moveAxis = 0;
+                    world.attackHeld = false;
+                    world.choosePerk(i);
+                  }),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(world.choices[i].name,
+                          textAlign: TextAlign.center,
+                          style: _mono.copyWith(fontSize: 13, color: Colors.amber)),
+                      const SizedBox(height: 6),
+                      Text(world.choices[i].desc,
+                          textAlign: TextAlign.center,
+                          style: _mono.copyWith(fontSize: 11)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ]);
+  }
+
   Widget _pauseOverlay() {
     return _panel('PAUSED', Colors.white, [
-      _btn('Resume', () => setState(() => paused = false)),
+      _btn('Resume', () => _setPaused(false)),
+      _btn(gSave.sound ? 'Sound: ON' : 'Sound: OFF', () {
+        setState(() {
+          gSave.sound = !gSave.sound;
+          Sfx.setEnabled(gSave.sound);
+        });
+        gSave.save();
+      }),
       _btn('Restart', () => _restart(stageIndex)),
       _btn('Quit to menu', () => Navigator.of(context).pop()),
     ]);
@@ -319,6 +438,8 @@ class _GameScreenState extends State<GameScreen>
           child: Text('You cleared every stage!', style: _mono.copyWith(fontSize: 13, color: Colors.amber)),
         ),
       const SizedBox(height: 10),
+      if (!won && world.canRespawn)
+        _btn('Continue (checkpoint)', () => setState(() => world.respawn())),
       if (hasNext) _btn('Next stage', () => _restart(stageIndex + 1)),
       _btn(won ? 'Replay stage' : 'Try again', () => _restart(stageIndex)),
       _btn('Menu', () => Navigator.of(context).pop()),

@@ -21,7 +21,7 @@ Use this as the starting point for every new app. It already builds on the Klenc
 - Gradle 8.14 (`android/gradle/wrapper/gradle-wrapper.properties`) — Flutter warns it wants 9.1+ "soon" (warning only).
 - Kotlin 2.2.20 (`android/settings.gradle.kts`) — do NOT use the `kotlinOptions { }` block (removed in Kotlin 2.2).
 - Java 17 (`compileOptions` in `android/app/build.gradle.kts`).
-- `audioplayers ^6.x` (5.x is too old for this toolchain).
+- `audioplayers ^6.x` (5.x is too old for this toolchain). Now enabled in pubspec.yaml.
 
 ## If a build fails
 Read the error, it names the exact minimum version it wants. Raise only that one file:
@@ -45,3 +45,22 @@ Read the error, it names the exact minimum version it wants. Raise only that one
 Changes to the template: `shared_preferences` enabled in pubspec.yaml, Android orientation set to
 `sensorLandscape`, app label set to "Ember Knight". Not yet compiled: run `flutter pub get` and
 `flutter analyze` first and fix anything it reports.
+
+## Ember Knight update 2
+- App icon: `android/app/src/main/res/mipmap-*/ic_launcher.png` (pixel portrait). Menu portrait: `assets/img/portrait.png`.
+- Build pitfall: a file named `res/drawable/ic_launcher.png` made `mergeReleaseResources` fail (AAPT could not compile it).
+  The launcher icon lives only in `mipmap-*`; never add an icon to `drawable/`.
+- New: 3-hit combo (3rd hit is a heavy finisher), hit counter, roguelike perks chosen on run level-up
+  (`kPerkList` in data.dart, applied in engine.dart), heart pickups, weapon rarity + 2 new weapons,
+  hero run/jump/attack frames (lavender hero palette).
+- Still not compiled here: run the CI build and fix any Dart error it prints (file + line).
+
+## Ember Knight update 3
+- Sound: `lib/game/audio.dart` (`Sfx`). 20 effects + 2 music loops in `assets/audio/*.wav`, synthesised by
+  `python3 tools/gen_audio.py` (needs numpy; only re-run if you want to change sounds). Errors in audio are swallowed
+  so the game never crashes because of sound. Sound on/off is saved (menu + pause screen).
+- Checkpoints: 2 flags per stage (34% and 67%). Reaching one heals 30%. After a defeat, "Continue (checkpoint)" respawns
+  there (boss fight: at the arena entrance). Rewards of a defeat are paid only when you give up (`settle()`).
+- Achievements: 14 in `kAchList` (data.dart), logic in `lib/game/achievements.dart`, screen in
+  `lib/screens/achievements_screen.dart`. Each pays gold once and shows a banner in game.
+- If the build fails on audioplayers (Gradle/Kotlin message), comment it out in pubspec.yaml and make `Sfx` methods no-ops.

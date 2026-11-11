@@ -15,6 +15,10 @@ class SaveData {
   Set<String> owned = {'sword'};
   Map<String, int> skills = {'fireball': 1, 'whirl': 0, 'heal': 0};
   Map<String, int> stats = {'hp': 0, 'atk': 0, 'spd': 0, 'crit': 0};
+  bool sound = true;
+  Set<String> achievements = {};
+  Set<String> bosses = {}; // boss ids defeated at least once
+  int totalKills = 0, bestCombo = 0;
 
   SaveData();
 
@@ -30,6 +34,11 @@ class SaveData {
         'owned': owned.toList(),
         'skills': skills,
         'stats': stats,
+        'sound': sound,
+        'ach': achievements.toList(),
+        'bosses': bosses.toList(),
+        'kills': totalKills,
+        'bestCombo': bestCombo,
       };
 
   factory SaveData.fromJson(Map<String, dynamic> j) {
@@ -61,6 +70,13 @@ class SaveData {
         if (v is num) s.stats[k.toString()] = v.toInt();
       });
     }
+    s.sound = j['sound'] != false;
+    final ac = j['ach'];
+    if (ac is List) s.achievements = ac.map((e) => e.toString()).toSet();
+    final bs = j['bosses'];
+    if (bs is List) s.bosses = bs.map((e) => e.toString()).toSet();
+    s.totalKills = (j['kills'] as num?)?.toInt() ?? 0;
+    s.bestCombo = (j['bestCombo'] as num?)?.toInt() ?? 0;
     return s;
   }
 

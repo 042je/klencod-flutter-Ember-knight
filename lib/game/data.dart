@@ -6,6 +6,7 @@ class WeaponDef {
   final double damage, reach, cooldown;
   final int cost;
   final int color; // slash colour (ARGB)
+  final int rarity; // 0 common, 1 rare, 2 epic, 3 legendary
   const WeaponDef({
     required this.id,
     required this.name,
@@ -15,8 +16,12 @@ class WeaponDef {
     required this.cooldown,
     required this.cost,
     required this.color,
+    this.rarity = 0,
   });
 }
+
+const List<String> kRarityNames = ['Common', 'Rare', 'Epic', 'Legendary'];
+const List<int> kRarityColors = [0xFFBDBDBD, 0xFF64B5F6, 0xFFBA68C8, 0xFFFFB300];
 
 const List<WeaponDef> kWeaponList = [
   WeaponDef(
@@ -45,7 +50,8 @@ const List<WeaponDef> kWeaponList = [
       reach: 74,
       cooldown: 0.42,
       cost: 350,
-      color: 0xFFFFE082),
+      color: 0xFFFFE082,
+      rarity: 1),
   WeaponDef(
       id: 'axe',
       name: 'Great Axe',
@@ -54,7 +60,28 @@ const List<WeaponDef> kWeaponList = [
       reach: 54,
       cooldown: 0.7,
       cost: 600,
-      color: 0xFFFF8A65),
+      color: 0xFFFF8A65,
+      rarity: 1),
+  WeaponDef(
+      id: 'katana',
+      name: 'Moon Katana',
+      desc: 'Fast and sharp.',
+      damage: 14,
+      reach: 54,
+      cooldown: 0.26,
+      cost: 1000,
+      color: 0xFFB388FF,
+      rarity: 2),
+  WeaponDef(
+      id: 'ember_blade',
+      name: 'Ember Blade',
+      desc: 'Forged in dragon fire.',
+      damage: 20,
+      reach: 62,
+      cooldown: 0.3,
+      cost: 2400,
+      color: 0xFFFFAB40,
+      rarity: 3),
 ];
 
 final Map<String, WeaponDef> kWeapons = {
@@ -106,6 +133,25 @@ const List<SkillDef> kSkillList = [
 final Map<String, SkillDef> kSkills = {
   for (final s in kSkillList) s.id: s,
 };
+
+/// Roguelike perks: offered three at a time when you level up during a run.
+class PerkDef {
+  final String id, name, desc;
+  const PerkDef(this.id, this.name, this.desc);
+}
+
+const List<PerkDef> kPerkList = [
+  PerkDef('dmg', 'Sharpened Edge', '+15% damage'),
+  PerkDef('haste', 'Swift Boots', '+10% move speed'),
+  PerkDef('vigor', 'Iron Heart', '+25 max HP and heal 25'),
+  PerkDef('crit', 'Eagle Eye', '+8% critical chance'),
+  PerkDef('vamp', 'Vampiric Edge', 'Heal a little on every hit'),
+  PerkDef('mana', 'Arcane Flow', '+60% mana regeneration'),
+  PerkDef('rapid', 'Frenzy', '+12% attack speed'),
+  PerkDef('multi', 'Twin Flames', 'Fireball fires extra shots'),
+  PerkDef('guard', 'Stone Skin', '-12% damage taken'),
+  PerkDef('burst', 'Shockwave', 'Combo finisher sends a shockwave'),
+];
 
 const int kMaxSkillLevel = 5;
 const int kMaxStatLevel = 10;
@@ -348,3 +394,30 @@ const List<StageDef> kStages = [
       ground: 0xFF2B1A17,
       grass: 0xFF8E3B22),
 ];
+
+class AchDef {
+  final String id, name, desc;
+  final int reward; // gold, paid once
+  const AchDef(this.id, this.name, this.desc, this.reward);
+}
+
+const List<AchDef> kAchList = [
+  AchDef('first_blood', 'First Blood', 'Defeat your first enemy.', 20),
+  AchDef('slayer100', 'Monster Hunter', 'Defeat 100 enemies.', 80),
+  AchDef('slayer500', 'Legend Slayer', 'Defeat 500 enemies.', 250),
+  AchDef('boss1', 'Boss Breaker', 'Defeat your first boss.', 60),
+  AchDef('bossall', 'Dragon Slayer', 'Defeat all five bosses.', 400),
+  AchDef('combo10', 'Combo Starter', 'Land a 10 hit combo.', 50),
+  AchDef('combo25', 'Combo Master', 'Land a 25 hit combo.', 150),
+  AchDef('checkpoint', 'Safe Haven', 'Reach a checkpoint.', 30),
+  AchDef('perk5', 'Build Crafter', 'Pick 5 perks in one run.', 100),
+  AchDef('perfect', 'Untouchable', 'Win a stage without taking damage.', 200),
+  AchDef('rich', 'Treasure Hoarder', 'Hold 1000 gold at once.', 100),
+  AchDef('collector', 'Armory', 'Own every weapon.', 300),
+  AchDef('level10', 'Seasoned Knight', 'Reach level 10.', 150),
+  AchDef('skillmax', 'Arcane Master', 'Max out one skill.', 200),
+];
+
+final Map<String, AchDef> kAch = {
+  for (final a in kAchList) a.id: a,
+};

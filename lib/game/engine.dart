@@ -1,6 +1,8 @@
 import 'dart:math';
 import 'dart:ui';
 
+import 'achievements.dart';
+import 'audio.dart';
 import 'data.dart';
 import 'save.dart';
 import 'sprites.dart';
@@ -20,6 +22,8 @@ class Knight {
   double hp, maxHp, mana, maxMana;
   double atkTimer = 0, slashTimer = 0, invuln = 0, dash = 0, dashCd = 0;
   double flash = 0, whirl = 0;
+  int comboStep = 0;
+  double comboTimer = 0, slashDur = 0.14;
   Knight(this.maxHp, this.maxMana)
       : hp = maxHp,
         mana = maxMana;
@@ -65,7 +69,8 @@ class Proj {
 class Coin {
   double x, y, vy = -170, life = 14;
   final int value;
-  Coin(this.x, this.y, this.value);
+  final bool heart; // a heart pickup restores health instead of giving gold
+  Coin(this.x, this.y, this.value, {this.heart = false});
 }
 
 class Particle {
@@ -121,6 +126,18 @@ class GameWorld {
   bool bossSpawned = false, bossDead = false;
   Enemy? bossRef;
 
+  // Run perks (roguelike choices) and hit combo counter.
+  final Map<String, int> perks = {};
+  List<PerkDef> choices = [];
+  int pendingPicks = 0, perkLevel = 1, _perkNext = 30;
+  int hits = 0, perksChosen = 0;
+  double hitTimer = 0, damageTaken = 0;
+
+  // Checkpoints: flags along the stage. After a defeat you may continue from the last one.
+  final List<double> checkpoints = [];
+  int checkpointIdx = -1;
+  bool payoutPending = false;
+
   // Input, written by the on-screen controls.
   double moveAxis = 0;
   bool attackHeld = false;
@@ -136,6 +153,8 @@ class GameWorld {
     speedMul = 1 + 0.05 * save.stat('spd');
     critChance = 0.05 + 0.04 * save.stat('crit');
     worldW = stage.length + 500;
+    checkpoints.add(stage.length * 0.34);
+    checkpoints.add(stage.length * 0.67);
     lockMax = worldW;
     final n = stage.count;
     for (var i = 0; i < n; i++) {
@@ -150,6 +169,45 @@ class GameWorld {
   }
 
   WeaponDef get weapon => kWeapons[save.weapon] ?? kWeapons['sword']!;
+
+  int perk(String id) => perks[id] ?? 0;
+  double get dmgMul => atkMul * (1 + 0.15 * perk('dmg'));
+  double get moveMul => speedMul * (1 + 0.10 * perk('haste'));
+  double get critNow => critChance + 0.08 * perk('crit');
+
+  void _rollChoices() {
+    final pool = List<PerkDef>.of(kPerkList)..shuffle(rng);
+    choices = pool.take(3).toList();
+  }
+
+  void _checkLevelUp() {
+    while (xpEarned >= _perkNext) {
+      perkLevel++;
+      _perkNext += 20 + 15 * perkLevel;
+      pendingPicks++;
+    }
+    if (pendingPicks > 0 && choices.isEmpty) {
+      _rollChoices();
+      Sfx.play('levelup');
+    }
+  }
+
+  void choosePerk(int i) {
+    if (i < 0 || i >= choices.length) return;
+    final p = choices[i];
+    perks[p.id] = perk(p.id) + 1;
+    if (p.id == 'vigor') {
+      hero.maxHp += 25;
+      hero.hp = min(hero.maxHp, hero.hp + 25);
+    }
+    floats.add(Floater(p.name, hero.x, hero.y - 70, 0xFFFFD54F));
+    Sfx.play('pick');
+    perksChosen++;
+    if (perksChosen >= 5) Ach.unlock('perk5');
+    pendingPicks--;
+    choices = [];
+    if (pendingPicks > 0) _rollChoices();
+  }
 
   // ---- input -------------------------------------------------------------
   void requestJump() => _jumpReq = true;
@@ -170,8 +228,14 @@ class GameWorld {
       _updateFx(dt);
       return;
     }
+    if (choices.isNotEmpty) return; // waiting for the player to pick a perk
     time += dt;
+    if (hitTimer > 0) {
+      hitTimer -= dt;
+      if (hitTimer <= 0) hits = 0;
+    }
     _updateHero(dt);
+    _checkpointLogic();
     _spawnLogic();
     enemies.addAll(_incoming);
     _incoming.clear();
@@ -205,7 +269,8 @@ class GameWorld {
     h.flash = max(0.0, h.flash - dt);
     h.whirl = max(0.0, h.whirl - dt);
     h.dashCd = max(0.0, h.dashCd - dt);
-    h.mana = min(h.maxMana, h.mana + 7 * dt);
+    h.comboTimer = max(0.0, h.comboTimer - dt);
+    h.mana = min(h.maxMana, h.mana + 7 * (1 + 0.6 * perk('mana')) * dt);
     for (final k in skillCd.keys.toList()) {
       skillCd[k] = max(0.0, (skillCd[k] ?? 0) - dt);
     }
@@ -213,6 +278,7 @@ class GameWorld {
     if (_dashReq && h.dashCd <= 0 && h.dash <= 0) {
       h.dash = 0.2;
       h.dashCd = 0.9;
+      Sfx.play('dash');
       h.invuln = max(h.invuln, 0.25);
       _burst(h.x, h.y - 20, 0xFFFFFFFF, 6);
     }
@@ -222,12 +288,13 @@ class GameWorld {
       h.dash -= dt;
       h.vx = h.facing * 420.0;
     } else {
-      h.vx = moveAxis * 150 * speedMul;
+      h.vx = moveAxis * 150 * moveMul;
       if (moveAxis != 0) h.facing = moveAxis > 0 ? 1 : -1;
     }
     if (_jumpReq && h.onGround) {
       h.vy = -430;
       h.onGround = false;
+      Sfx.play('jump');
     }
     _jumpReq = false;
     h.vy += 1150 * dt;
@@ -245,19 +312,50 @@ class GameWorld {
   void _attack() {
     final h = hero;
     final w = weapon;
-    h.atkTimer = w.cooldown;
-    h.slashTimer = 0.14;
-    final far = h.x + h.facing * (w.reach + 8);
+    // 3-hit combo: keep attacking within 0.75s to chain; the third hit is a heavy finisher.
+    if (h.comboTimer > 0) {
+      h.comboStep = h.comboStep % 3 + 1;
+    } else {
+      h.comboStep = 1;
+    }
+    h.comboTimer = 0.75;
+    final fin = h.comboStep == 3;
+    Sfx.play(fin ? 'slash2' : 'slash');
+    final speedUp = 1 + 0.12 * perk('rapid');
+    h.atkTimer = w.cooldown * (fin ? 1.35 : 1.0) / speedUp;
+    h.slashDur = fin ? 0.22 : 0.14;
+    h.slashTimer = h.slashDur;
+    final reach = w.reach * (fin ? 1.3 : 1.0);
+    final far = h.x + h.facing * (reach + 8);
     final rect = Rect.fromLTRB(
         min(h.x, far), h.y - Knight.h - 14, max(h.x, far), h.y);
+    final step = h.comboStep == 1 ? 1.0 : (h.comboStep == 2 ? 1.15 : 1.7);
     for (final e in enemies) {
       if (e.dead) continue;
       final er = Rect.fromLTWH(e.x - e.w / 2, e.y - e.h, e.w, e.h);
       if (!rect.overlaps(er)) continue;
-      final crit = rng.nextDouble() < critChance;
-      final dmg = w.damage * atkMul * (crit ? 2 : 1) * (0.9 + rng.nextDouble() * 0.2);
-      _hitEnemy(e, dmg, 150, 0.2, crit: crit);
+      final crit = rng.nextDouble() < critNow;
+      final dmg = w.damage *
+          dmgMul *
+          step *
+          (crit ? 2 : 1) *
+          (0.9 + rng.nextDouble() * 0.2);
+      _hitEnemy(e, dmg, fin ? 280 : 150, fin ? 0.38 : 0.2, crit: crit);
     }
+    if (fin && perk('burst') > 0) _shockwave();
+  }
+
+  void _shockwave() {
+    final h = hero;
+    final dmg = (10 + weapon.damage) * 0.8 * dmgMul * perk('burst');
+    for (final e in enemies) {
+      if (e.dead) continue;
+      final near = (e.x - h.x).abs() < 110 + e.w / 2;
+      final inY = e.y > h.y - 70 && e.y - e.h < h.y + 10;
+      if (near && inY) _hitEnemy(e, dmg, 200, 0.25, crit: false);
+    }
+    h.whirl = 0.3;
+    _burst(h.x, h.y - 20, 0xFFFFD54F, 14, speed: 160);
   }
 
   bool castSkill(String id) {
@@ -271,27 +369,32 @@ class GameWorld {
     skillCd[id] = def.cooldown;
     switch (id) {
       case 'fireball':
-        projs.add(Proj(
-          x: h.x + h.facing * 20,
-          y: h.y - 36,
-          vx: h.facing * 380.0,
-          vy: 0,
-          dmg: 22 * pow * atkMul,
-          life: 1.6,
-          friendly: true,
-          color: 0xFFFF7043,
-          r: 9,
-          pierce: true,
-        ));
+        Sfx.play('fire');
+        final extra = perk('multi');
+        for (var k = -extra; k <= extra; k++) {
+          projs.add(Proj(
+            x: h.x + h.facing * 20,
+            y: h.y - 36,
+            vx: h.facing * 380.0,
+            vy: k * 40.0,
+            dmg: 22 * pow * dmgMul,
+            life: 1.6,
+            friendly: true,
+            color: 0xFFFF7043,
+            r: 9,
+            pierce: true,
+          ));
+        }
         break;
       case 'whirl':
+        Sfx.play('whirl');
         h.whirl = 0.35;
         for (final e in enemies) {
           if (e.dead) continue;
           final dx = e.x - h.x;
           final inY = e.y > h.y - Knight.h - 30 && e.y - e.h < h.y + 10;
           if (dx.abs() < 95 + e.w / 2 && inY) {
-            _hitEnemy(e, 16 * pow * atkMul, 220 * (dx >= 0 ? 1 : -1) / h.facing, 0.3,
+            _hitEnemy(e, 16 * pow * dmgMul, 220 * (dx >= 0 ? 1 : -1) / h.facing, 0.3,
                 crit: false);
           }
         }
@@ -302,6 +405,7 @@ class GameWorld {
         }
         break;
       case 'heal':
+        Sfx.play('heal');
         final amount = h.maxHp * (0.25 + 0.05 * lv);
         h.hp = min(h.maxHp, h.hp + amount);
         floats.add(Floater('+${amount.round()}', h.x, h.y - 60, 0xFF69F0AE));
@@ -314,7 +418,10 @@ class GameWorld {
   void _hurtHero(double dmg, double fromX) {
     final h = hero;
     if (h.invuln > 0 || state != GameState.playing) return;
+    dmg *= max(0.4, 1 - 0.12 * perk('guard'));
     h.hp -= dmg;
+    damageTaken += dmg;
+    Sfx.play('hurt');
     h.invuln = 0.9;
     h.flash = 0.18;
     h.x += (h.x >= fromX ? 1 : -1) * 16.0;
@@ -358,6 +465,8 @@ class GameWorld {
       final b = _make(stage.boss, stage.length + 220);
       bossRef = b;
       _incoming.add(b);
+      Sfx.play('boss');
+      Sfx.music('bgm_boss');
     }
   }
 
@@ -505,6 +614,13 @@ class GameWorld {
     if (e.dead) return;
     e.hp -= dmg;
     e.flash = 0.12;
+    hits++;
+    hitTimer = 2.0;
+    Sfx.play(crit ? 'crit' : 'hit');
+    if (hits > save.bestCombo) save.bestCombo = hits;
+    if (hits == 10 || hits == 25) Ach.checkProgress();
+    final vamp = perk('vamp');
+    if (vamp > 0) hero.hp = min(hero.maxHp, hero.hp + 1.2 * vamp);
     if (!e.boss) {
       e.vx = hero.facing * kb;
       e.stun = stun;
@@ -517,13 +633,23 @@ class GameWorld {
   void _kill(Enemy e) {
     e.dead = true;
     kills++;
+    save.totalKills++;
+    if (e.boss) save.bosses.add(e.def.id);
+    Sfx.play('die');
     xpEarned += e.def.xp;
+    _checkLevelUp();
+    Ach.checkProgress();
     final n = e.boss ? 10 : 1 + rng.nextInt(2);
     final per = max(1, e.def.gold ~/ n);
     for (var i = 0; i < n; i++) {
       final c = Coin(e.x + (rng.nextDouble() - 0.5) * 30, e.y - e.h * 0.5, per);
       c.vy = -120 - rng.nextDouble() * 120;
       coins.add(c);
+    }
+    if (!e.boss && rng.nextDouble() < 0.12) {
+      final heart = Coin(e.x, e.y - e.h * 0.5, 0, heart: true);
+      heart.vy = -150;
+      coins.add(heart);
     }
     _burst(e.x, e.y - e.h * 0.5, e.boss ? 0xFFFFD54F : 0xFFFFFFFF,
         e.boss ? 40 : 10,
@@ -588,9 +714,17 @@ class GameWorld {
         c.x += dx.sign * 260 * dt;
       }
       if (dx.abs() < 18 && dy.abs() < 40) {
-        goldEarned += c.value;
         c.life = -1;
-        floats.add(Floater('+${c.value}', c.x, c.y - 14, 0xFFFFD54F));
+        if (c.heart) {
+          Sfx.play('heal');
+          final amount = hero.maxHp * 0.15;
+          hero.hp = min(hero.maxHp, hero.hp + amount);
+          floats.add(Floater('+${amount.round()} HP', c.x, c.y - 14, 0xFF69F0AE));
+        } else {
+          goldEarned += c.value;
+          Sfx.play('coin');
+          floats.add(Floater('+${c.value}', c.x, c.y - 14, 0xFFFFD54F));
+        }
       }
     }
     coins.removeWhere((c) => c.life <= 0);
@@ -620,6 +754,46 @@ class GameWorld {
     floats.removeWhere((f) => f.life <= 0);
   }
 
+  // ---- checkpoints -----------------------------------------------------------
+  bool get canRespawn => checkpointIdx >= 0 || bossSpawned;
+
+  void _checkpointLogic() {
+    for (var i = checkpointIdx + 1; i < checkpoints.length; i++) {
+      if (hero.x >= checkpoints[i]) {
+        checkpointIdx = i;
+        hero.hp = min(hero.maxHp, hero.hp + hero.maxHp * 0.3);
+        hero.mana = hero.maxMana;
+        floats.add(Floater('CHECKPOINT', hero.x, hero.y - 80, 0xFF69F0AE));
+        _burst(checkpoints[i], kGroundY - 20, 0xFF69F0AE, 16);
+        Sfx.play('checkpoint');
+        Ach.unlock('checkpoint');
+      }
+    }
+  }
+
+  /// Continue after a defeat from the last checkpoint (or the boss arena entrance).
+  bool respawn() {
+    if (state != GameState.lost || !canRespawn) return false;
+    payoutPending = false;
+    state = GameState.playing;
+    endTimer = 0;
+    final h = hero;
+    h.hp = h.maxHp * 0.6;
+    h.mana = h.maxMana;
+    h.invuln = 2.0;
+    h.vx = 0;
+    h.vy = 0;
+    h.dash = 0;
+    h.y = kGroundY;
+    h.onGround = true;
+    h.x = bossSpawned ? lockMin + 40 : checkpoints[checkpointIdx];
+    enemies.removeWhere((e) => !e.boss);
+    projs.clear();
+    camX = max(0.0, h.x - viewW * 0.4);
+    Sfx.music(bossSpawned ? 'bgm_boss' : 'bgm');
+    return true;
+  }
+
   // ---- end of stage ----------------------------------------------------------
   void _finish(bool won) {
     if (state != GameState.playing) return;
@@ -627,12 +801,32 @@ class GameWorld {
     endTimer = 0;
     final bonus = won ? 50 + 30 * stageIndex : 0;
     rewardGold = won ? goldEarned + bonus : goldEarned ~/ 2;
+    Sfx.stopMusic();
+    Sfx.play(won ? 'win' : 'lose');
+    if (!won && canRespawn) {
+      // Paid when the player gives up, so a checkpoint retry never pays twice.
+      payoutPending = true;
+      return;
+    }
+    _payout(won);
+  }
+
+  void _payout(bool won) {
     save.gold += rewardGold;
     save.xp += xpEarned;
     if (won) {
       final next = min(stageIndex + 1, kStages.length - 1);
       save.unlockedStage = max(save.unlockedStage, next);
+      if (damageTaken <= 0) Ach.unlock('perfect');
     }
     save.save();
+    Ach.checkProgress();
+  }
+
+  /// Pays out a defeat that was waiting for a checkpoint decision.
+  void settle() {
+    if (!payoutPending) return;
+    payoutPending = false;
+    _payout(false);
   }
 }

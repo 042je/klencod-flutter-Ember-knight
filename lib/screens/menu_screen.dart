@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../game/audio.dart';
 import '../game/data.dart';
 import '../game/game_screen.dart';
 import '../game/save.dart';
+import 'achievements_screen.dart';
 import 'shop_screen.dart';
 
 const TextStyle _mono = TextStyle(
@@ -32,29 +34,67 @@ class _MenuScreenState extends State<MenuScreen> {
         ),
         child: SafeArea(
           child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('EMBER KNIGHT',
-                    style: _mono.copyWith(fontSize: 38, color: Colors.amber, letterSpacing: 3)),
-                const SizedBox(height: 4),
-                Text('Pixel Action RPG  -  Offline',
-                    style: _mono.copyWith(fontSize: 12, color: Colors.white70)),
-                const SizedBox(height: 6),
-                Text('Level ${gSave.level}    Gold ${gSave.gold}',
-                    style: _mono.copyWith(fontSize: 14, color: Colors.amberAccent)),
-                const SizedBox(height: 14),
-                _menuButton('PLAY', () async {
-                  await Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const StageSelectScreen()));
-                  if (mounted) setState(() {});
-                }),
-                _menuButton('SHOP & UPGRADES', () async {
-                  await Navigator.of(context)
-                      .push(MaterialPageRoute(builder: (_) => const ShopScreen()));
-                  if (mounted) setState(() {});
-                }),
-              ],
+            child: SingleChildScrollView(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.amber, width: 3),
+                    ),
+                    child: Image.asset(
+                      'assets/img/portrait.png',
+                      width: 170,
+                      height: 170,
+                      filterQuality: FilterQuality.none,
+                      errorBuilder: (_, __, ___) => const SizedBox(width: 170, height: 170),
+                    ),
+                  ),
+                  const SizedBox(width: 28),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('EMBER KNIGHT',
+                          style: _mono.copyWith(fontSize: 38, color: Colors.amber, letterSpacing: 3)),
+                      const SizedBox(height: 4),
+                      Text('Pixel Action RPG  -  Offline',
+                          style: _mono.copyWith(fontSize: 12, color: Colors.white70)),
+                      const SizedBox(height: 6),
+                      Text('Level ${gSave.level}    Gold ${gSave.gold}',
+                          style: _mono.copyWith(fontSize: 14, color: Colors.amberAccent)),
+                      const SizedBox(height: 10),
+                      _menuButton('PLAY', () async {
+                        await Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const StageSelectScreen()));
+                        if (mounted) setState(() {});
+                      }),
+                      _menuButton('SHOP & UPGRADES', () async {
+                        await Navigator.of(context)
+                            .push(MaterialPageRoute(builder: (_) => const ShopScreen()));
+                        if (mounted) setState(() {});
+                      }),
+                      _menuButton('ACHIEVEMENTS  ${gSave.achievements.length}/${kAchList.length}', () async {
+                        await Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const AchievementsScreen()));
+                        if (mounted) setState(() {});
+                      }),
+                      TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            gSave.sound = !gSave.sound;
+                            Sfx.setEnabled(gSave.sound);
+                          });
+                          gSave.save();
+                        },
+                        icon: Icon(gSave.sound ? Icons.volume_up : Icons.volume_off,
+                            color: Colors.white70),
+                        label: Text(gSave.sound ? 'Sound ON' : 'Sound OFF',
+                            style: _mono.copyWith(fontSize: 12, color: Colors.white70)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -64,12 +104,15 @@ class _MenuScreenState extends State<MenuScreen> {
 
   Widget _menuButton(String text, VoidCallback onTap) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: SizedBox(
-        width: 240,
-        height: 46,
+        width: 260,
+        height: 42,
         child: ElevatedButton(
-          onPressed: onTap,
+          onPressed: () {
+            Sfx.play('click');
+            onTap();
+          },
           child: Text(text, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold)),
         ),
       ),
