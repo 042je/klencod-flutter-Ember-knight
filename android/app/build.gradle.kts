@@ -5,6 +5,10 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// A stray res/drawable/ic_launcher.png breaks AAPT ("file failed to compile").
+// The real launcher icon lives in mipmap-*, so delete the stray file before every build.
+file("src/main/res/drawable/ic_launcher.png").delete()
+
 android {
     namespace = "com.example.app"
     compileSdk = flutter.compileSdkVersion

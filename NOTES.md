@@ -64,3 +64,6 @@ Changes to the template: `shared_preferences` enabled in pubspec.yaml, Android o
 - Achievements: 14 in `kAchList` (data.dart), logic in `lib/game/achievements.dart`, screen in
   `lib/screens/achievements_screen.dart`. Each pays gold once and shows a banner in game.
 - If the build fails on audioplayers (Gradle/Kotlin message), comment it out in pubspec.yaml and make `Sfx` methods no-ops.
+- `android/app/build.gradle.kts` deletes `res/drawable/ic_launcher.png` at configuration time, so that stray file can no longer break the build.
+- A valid `res/drawable/ic_launcher.png` is shipped on purpose: if the repo already holds a broken file with that name
+  (e.g. a JPEG saved with a .png extension), uploading this zip overwrites it with a file AAPT can compile.
